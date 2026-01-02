@@ -3,6 +3,7 @@ const path = require('path');
 const axios = require('axios');
 const ExcelJS = require('exceljs');
 const fs = require('fs');
+const ApiConfig = require('./apiConfig');
 
 let mainWindow;
 const configPath = path.join(app.getPath('userData'), 'config.json');
@@ -46,16 +47,14 @@ app.on('activate', function () {
 // API Handler - Lấy danh sách chi nhánh
 ipcMain.handle('fetch-branches', async (event, { authorization, companyCode }) => {
   try {
-    const response = await axios.get(
-      'https://thucphamnhapkhau.mshopkeeper.vn/backendg1/api/Stocks?page=1&start=0&limit=50',
-      {
-        headers: {
-          'Authorization': `Bearer ${authorization}`,
-          'CompanyCode': companyCode,
-          'X-MISA-BranchID': '00000000-0000-0000-0000-000000000000'
-        }
-      }
+    const url = ApiConfig.getStocksUrl(companyCode, { page: 1, start: 0, limit: 50 });
+    const headers = ApiConfig.buildHeaders(
+      authorization,
+      companyCode,
+      '00000000-0000-0000-0000-000000000000'
     );
+
+    const response = await axios.get(url, { headers });
 
     if (response.data.Code === 200) {
       return {
@@ -83,35 +82,11 @@ ipcMain.handle('fetch-branches', async (event, { authorization, companyCode }) =
 // API Handler - Lấy dữ liệu phiếu nhập/xuất kho
 ipcMain.handle('fetch-inwards', async (event, { authorization, companyCode, branchID, startDate, endDate, documentType = 'INInwards', page = 1, limit = 50 }) => {
   try {
-    const filter = [
-      {
-        "xtype": "filter",
-        "property": "RefDate",
-        "operator": 4,
-        "value": startDate,
-        "type": 2,
-        "group": "RefDate"
-      },
-      {
-        "xtype": "filter",
-        "property": "RefDate",
-        "operator": 3,
-        "value": endDate,
-        "type": 2,
-        "addition": 1,
-        "group": "RefDate"
-      }
-    ];
+    const filter = ApiConfig.createDateFilter(startDate, endDate);
+    const url = ApiConfig.getDocumentUrl(companyCode, documentType, { page, limit, filter });
+    const headers = ApiConfig.buildHeaders(authorization, companyCode, branchID);
 
-    const url = `https://thucphamnhapkhau.mshopkeeper.vn/backendg1/api/${documentType}?page=${page}&start=${(page - 1) * limit}&limit=${limit}&filter=${encodeURIComponent(JSON.stringify(filter))}`;
-
-    const response = await axios.get(url, {
-      headers: {
-        'Authorization': `Bearer ${authorization}`,
-        'CompanyCode': companyCode,
-        'X-MISA-BranchID': branchID
-      }
-    });
+    const response = await axios.get(url, { headers });
 
     if (response.data.Code === 200) {
       return {
