@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gofood - Xuất Excel Phiếu Nhập Kho</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <h1 class="app-title">
+          <svg class="logo-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Xuất Excel Phiếu Nhập Kho
+        </h1>
+        <p class="app-subtitle">Hệ thống quản lý và xuất báo cáo Gofood</p>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Configuration Section -->
+      <section class="card config-section">
+        <h2 class="section-title">
+          <svg class="section-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Cấu hình kết nối
+        </h2>
+
+        <div class="form-group">
+          <label for="authorization" class="form-label">
+            Authorization Token
+            <span class="required">*</span>
+          </label>
+          <input
+            type="password"
+            id="authorization"
+            class="form-input"
+            placeholder="Nhập Bearer token..."
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="companyCode" class="form-label">
+            Company Code
+            <span class="required">*</span>
+          </label>
+          <input
+            type="text"
+            id="companyCode"
+            class="form-input"
+            placeholder="Nhập company code..."
+            value="thucphamnhapkhau"
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="documentType" class="form-label">
+            Loại chứng từ
+            <span class="required">*</span>
+          </label>
+          <select id="documentType" class="form-input">
+            <option value="INInwards">Phiếu nhập kho</option>
+            <option value="Outwards">Phiếu xuất kho</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="startDate" class="form-label">
+              Từ ngày
+              <span class="required">*</span>
+            </label>
+            <input
+              type="date"
+              id="startDate"
+              class="form-input"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="endDate" class="form-label">
+              Đến ngày
+              <span class="required">*</span>
+            </label>
+            <input
+              type="date"
+              id="endDate"
+              class="form-input"
+            >
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="loadDataBtn" class="btn btn-primary">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Tải dữ liệu
+          </button>
+
+          <button id="saveConfigBtn" class="btn btn-secondary">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Lưu cấu hình
+          </button>
+
+          <button id="loadConfigBtn" class="btn btn-secondary">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Load cấu hình
+          </button>
+        </div>
+      </section>
+
+      <!-- Progress Section -->
+      <section class="card progress-section" id="progressSection" style="display: none;">
+        <h2 class="section-title">
+          <svg class="section-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Tiến trình tải dữ liệu
+        </h2>
+
+        <div class="progress-info">
+          <div class="progress-text">
+            <span id="progressText">Đang khởi tạo...</span>
+            <span id="progressPercent" class="progress-percent">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div id="progressBarFill" class="progress-bar-fill"></div>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon stat-icon-primary">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="stat-content">
+              <div class="stat-label">Chi nhánh</div>
+              <div class="stat-value" id="branchesCount">0</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon stat-icon-success">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="stat-content">
+              <div class="stat-label" id="recordsLabel">Phiếu nhập</div>
+              <div class="stat-value" id="recordsCount">0</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon stat-icon-warning">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="stat-content">
+              <div class="stat-label">Trạng thái</div>
+              <div class="stat-value stat-value-small" id="statusText">Chờ xử lý</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="logContainer" class="log-container"></div>
+      </section>
+
+      <!-- Data Table Section -->
+      <section class="card data-section" id="dataSection" style="display: none;">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg class="section-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Dữ liệu phiếu nhập kho
+          </h2>
+          <button id="exportBtn" class="btn btn-success">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Xuất Excel
+          </button>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>STT</th>
+                <th>Mã phiếu</th>
+                <th>Ngày nhập</th>
+                <th>Chi nhánh</th>
+                <th>Diễn giải</th>
+                <th>Đối tượng</th>
+                <th>Từ chi nhánh</th>
+              </tr>
+            </thead>
+            <tbody id="dataTableBody">
+              <!-- Data will be inserted here -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span>&copy; 2025 Gofood System. All rights reserved.</span>
+        <span id="appVersion" style="color: #999;">v1.0.0</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
