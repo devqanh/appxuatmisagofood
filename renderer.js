@@ -4,6 +4,7 @@ const { version } = require('./package.json');
 // State
 let allData = [];
 let branches = [];
+let isLoadingCancelled = false;
 
 // DOM Elements
 const loadDataBtn = document.getElementById('loadDataBtn');
@@ -136,7 +137,7 @@ async function loadBranchData(config, branch, branchIndex, totalBranches) {
   let page = 1;
   let hasMoreData = true;
 
-  while (hasMoreData) {
+  while (hasMoreData && !isLoadingCancelled) {
     const result = await ipcRenderer.invoke('fetch-inwards', {
       authorization: config.authorization,
       companyCode: config.companyCode,
@@ -177,6 +178,59 @@ async function loadBranchData(config, branch, branchIndex, totalBranches) {
   return branchData;
 }
 
+// Load payment report data
+async function loadPaymentReportData(config) {
+  addLog('Đang tải báo cáo thanh toán...', 'info');
+
+  let allReportData = [];
+  let page = 1;
+  let hasMoreData = true;
+
+  // Get list of branch IDs
+  const branchIDs = branches.map(b => b.branchID);
+
+  while (hasMoreData && !isLoadingCancelled) {
+    const result = await ipcRenderer.invoke('fetch-payment-report', {
+      authorization: config.authorization,
+      companyCode: config.companyCode,
+      branchIDs: branchIDs,
+      startDate: config.startDate,
+      endDate: config.endDate,
+      page: page,
+      limit: 50
+    });
+
+    if (!result.success) {
+      addLog(`Lỗi khi tải báo cáo thanh toán: ${result.error}`, 'error');
+      break;
+    }
+
+    if (result.data && result.data.length > 0) {
+      allReportData = allReportData.concat(result.data);
+      addLog(`Trang ${page}/${result.totalPages}: ${result.data.length} bản ghi`, 'success');
+
+      // Update progress
+      const progress = (page / result.totalPages) * 90 + 10;
+      updateProgress(progress, `Đang tải báo cáo thanh toán (${page}/${result.totalPages})`);
+
+      // Update record count
+      recordsCount.textContent = formatNumber(allReportData.length);
+    }
+
+    hasMoreData = page < result.totalPages;
+    page++;
+  }
+
+  return allReportData;
+}
+
+// Stop loading function
+function stopLoading() {
+  isLoadingCancelled = true;
+  addLog('Đang dừng tải dữ liệu...', 'warning');
+  statusText.textContent = 'Đã hủy';
+}
+
 // Main load data function
 async function loadData() {
   const config = validateForm();
@@ -186,6 +240,7 @@ async function loadData() {
     // Reset state
     allData = [];
     branches = [];
+    isLoadingCancelled = false;
     dataTableBody.innerHTML = '';
     logContainer.innerHTML = '';
 
@@ -193,9 +248,15 @@ async function loadData() {
     progressSection.style.display = 'block';
     dataSection.style.display = 'none';
 
-    // Disable button
-    loadDataBtn.disabled = true;
-    loadDataBtn.textContent = 'Đang tải...';
+    // Change button to Stop button
+    loadDataBtn.removeEventListener('click', loadData);
+    loadDataBtn.innerHTML = `
+      <svg class="btn-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 6h12v12H6z" fill="currentColor"/>
+      </svg>
+      Dừng
+    `;
+    loadDataBtn.addEventListener('click', stopLoading);
 
     updateProgress(0, 'Đang khởi tạo...');
     statusText.textContent = 'Đang xử lý';
@@ -209,43 +270,66 @@ async function loadData() {
       throw new Error('Không tìm thấy chi nhánh nào');
     }
 
-    // Step 2: Load data for each branch
+    // Step 2: Load data based on document type
     updateProgress(10, 'Bắt đầu tải dữ liệu...');
 
-    for (let i = 0; i < branches.length; i++) {
-      const branch = branches[i];
-      const branchData = await loadBranchData(config, branch, i, branches.length);
-      allData = allData.concat(branchData);
+    if (config.documentType === 'PaymentReport') {
+      // Load payment report data (all branches at once)
+      allData = await loadPaymentReportData(config);
+    } else {
+      // Load data for each branch (INInwards/Outwards)
+      for (let i = 0; i < branches.length && !isLoadingCancelled; i++) {
+        const branch = branches[i];
+        const branchData = await loadBranchData(config, branch, i, branches.length);
+        allData = allData.concat(branchData);
 
-      // Update record count
-      recordsCount.textContent = formatNumber(allData.length);
+        // Update record count
+        recordsCount.textContent = formatNumber(allData.length);
+      }
     }
 
-    // Complete
-    updateProgress(100, 'Hoàn thành');
-    statusText.textContent = 'Hoàn thành';
+    // Check if cancelled
+    if (isLoadingCancelled) {
+      addLog(`Đã dừng tải. Đã lấy được ${allData.length} bản ghi`, 'warning');
+      statusText.textContent = 'Đã dừng';
+    } else {
+      // Complete
+      updateProgress(100, 'Hoàn thành');
+      statusText.textContent = 'Hoàn thành';
 
-    const docTypeName = config.documentType === 'INInwards' ? 'phiếu nhập kho' : 'phiếu xuất kho';
-    showSuccess(`Đã tải xong ${allData.length} ${docTypeName} từ ${branches.length} chi nhánh`);
+      let docTypeName;
+      if (config.documentType === 'INInwards') {
+        docTypeName = 'phiếu nhập kho';
+      } else if (config.documentType === 'Outwards') {
+        docTypeName = 'phiếu xuất kho';
+      } else {
+        docTypeName = 'bản ghi thanh toán';
+      }
 
-    // Display data in table
-    displayData();
+      showSuccess(`Đã tải xong ${allData.length} ${docTypeName} từ ${branches.length} chi nhánh`);
+    }
 
-    // Show data section
-    dataSection.style.display = 'block';
+    // Display data in table if we have any
+    if (allData.length > 0) {
+      displayData();
+      dataSection.style.display = 'block';
+    }
 
   } catch (error) {
     showError(error.message);
     statusText.textContent = 'Lỗi';
     updateProgress(0, 'Lỗi xảy ra');
   } finally {
-    loadDataBtn.disabled = false;
+    // Restore button
+    loadDataBtn.removeEventListener('click', stopLoading);
     loadDataBtn.innerHTML = `
       <svg class="btn-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       Tải dữ liệu
     `;
+    loadDataBtn.addEventListener('click', loadData);
+    isLoadingCancelled = false;
   }
 }
 
@@ -303,7 +387,19 @@ async function exportToExcel() {
     const startDate = document.getElementById('startDate').value;
     const endDate = document.getElementById('endDate').value;
     const docType = document.getElementById('documentType').value;
-    const docTypeName = docType === 'INInwards' ? 'PhieuNhapKho' : 'PhieuXuatKho';
+
+    let docTypeName, docTypeText;
+    if (docType === 'INInwards') {
+      docTypeName = 'PhieuNhapKho';
+      docTypeText = 'phiếu nhập kho';
+    } else if (docType === 'Outwards') {
+      docTypeName = 'PhieuXuatKho';
+      docTypeText = 'phiếu xuất kho';
+    } else if (docType === 'PaymentReport') {
+      docTypeName = 'BaoCaoThanhToan';
+      docTypeText = 'bản ghi thanh toán';
+    }
+
     const fileName = `${docTypeName}_${startDate.replace(/-/g, '')}_${endDate.replace(/-/g, '')}.xlsx`;
 
     const result = await ipcRenderer.invoke('export-excel', {
@@ -321,7 +417,6 @@ async function exportToExcel() {
       throw new Error(result.error);
     }
 
-    const docTypeText = docType === 'INInwards' ? 'phiếu nhập kho' : 'phiếu xuất kho';
     showSuccess(`Đã xuất ${result.totalRecords} ${docTypeText} ra file: ${result.filePath}`);
     alert(`Xuất Excel thành công!\n\nĐã xuất ${result.totalRecords} ${docTypeText}.\nFile đã được lưu tại:\n${result.filePath}`);
 
@@ -380,7 +475,13 @@ async function autoLoadConfig() {
 // Update label when document type changes
 function updateDocumentTypeLabel() {
   const docType = documentTypeSelect.value;
-  recordsLabel.textContent = docType === 'INInwards' ? 'Phiếu nhập' : 'Phiếu xuất';
+  if (docType === 'INInwards') {
+    recordsLabel.textContent = 'Phiếu nhập';
+  } else if (docType === 'Outwards') {
+    recordsLabel.textContent = 'Phiếu xuất';
+  } else if (docType === 'PaymentReport') {
+    recordsLabel.textContent = 'Bản ghi';
+  }
 }
 
 // Event Listeners
